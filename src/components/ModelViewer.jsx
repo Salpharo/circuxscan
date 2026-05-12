@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
+import { normalizeModelLoadUrl } from "@/lib/modelUrls";
 
 export default function ModelViewer({ url, onClose }) {
   const containerRef = useRef(null);
@@ -28,6 +29,8 @@ export default function ModelViewer({ url, onClose }) {
 
   useEffect(() => {
     if (!containerRef.current || !url) return;
+
+    const loadUrl = normalizeModelLoadUrl(url);
 
     const container = containerRef.current;
     const width = container.clientWidth;
@@ -170,7 +173,7 @@ export default function ModelViewer({ url, onClose }) {
         loader.setDRACOLoader(dracoLoader);
 
         loader.load(
-          url,
+          loadUrl,
           (gltf) => {
             const model = gltf.scene;
 
@@ -202,7 +205,7 @@ export default function ModelViewer({ url, onClose }) {
             }
 
             setModelInfo({
-              name: url.split("/").pop().split("?")[0],
+              name: loadUrl.split("/").pop().split("?")[0],
               vertices: countVertices(model),
               animations: gltf.animations.length,
               size: `${size.x.toFixed(1)} × ${size.y.toFixed(1)} × ${size.z.toFixed(1)}`,

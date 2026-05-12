@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
+import { normalizeModelLoadUrl } from "@/lib/modelUrls";
 import { X, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -15,6 +16,8 @@ export default function ARViewer({ glbUrl, onClose }) {
 
   useEffect(() => {
     if (!containerRef.current || !glbUrl) return;
+
+    const loadUrl = normalizeModelLoadUrl(glbUrl);
 
     const container = containerRef.current;
     const width = container.clientWidth;
@@ -63,7 +66,7 @@ export default function ARViewer({ glbUrl, onClose }) {
         loader.setDRACOLoader(dracoLoader);
 
         loader.load(
-          glbUrl,
+          loadUrl,
           (gltf) => {
             const model = gltf.scene;
 

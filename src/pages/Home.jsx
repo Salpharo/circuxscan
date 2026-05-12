@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { ScanLine, Box, X, ArrowLeft, LinkIcon, Camera, Folder } from "lucide-react";
@@ -8,12 +8,44 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import QRScanner from "../components/QRScanner";
 import ModelViewer from "../components/ModelViewer";
 import GoogleDriveModels from "../components/GoogleDriveModels";
-import { resolveScanPayload } from "@/lib/modelUrls";
+import { resolveScanPayload, DEFAULT_ROOT_QR_MODEL_URL } from "@/lib/modelUrls";
+
+function getLaunchState() {
+  if (typeof window === "undefined") {
+    return { mode: "idle", modelUrl: null };
+  }
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("menu") === "1" || params.get("home") === "1") {
+    return { mode: "idle", modelUrl: null };
+  }
+  const explicit = params.get("url") || params.get("model");
+  if (explicit) {
+    const resolved = resolveScanPayload(explicit);
+    if (resolved?.type === "url") {
+      return { mode: "viewing", modelUrl: resolved.url };
+    }
+    return { mode: "idle", modelUrl: null };
+  }
+
+  const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
+  let path = window.location.pathname.replace(/\/$/, "") || "/";
+  if (base && path.startsWith(base)) {
+    path = path.slice(base.length) || "/";
+  }
+  const atRoot = path === "/" || path === "";
+  if (atRoot) {
+    const resolved = resolveScanPayload(DEFAULT_ROOT_QR_MODEL_URL);
+    if (resolved?.type === "url") {
+      return { mode: "viewing", modelUrl: resolved.url };
+    }
+  }
+  return { mode: "idle", modelUrl: null };
+}
 
 export default function Home() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState("idle"); // idle, scanning, viewing
-  const [modelUrl, setModelUrl] = useState(null);
+  const [mode, setMode] = useState(() => getLaunchState().mode); // idle, scanning, viewing
+  const [modelUrl, setModelUrl] = useState(() => getLaunchState().modelUrl);
   const [manualUrl, setManualUrl] = useState("");
   const [activeTab, setActiveTab] = useState("scan");
 
@@ -62,6 +94,16 @@ export default function Home() {
   const startScanning = useCallback(() => {
     setMode("scanning");
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const explicit = params.get("url") || params.get("model");
+    if (!explicit) return;
+    const resolved = resolveScanPayload(explicit);
+    if (resolved?.type === "library") {
+      navigate(`/3dmodellibrary/${resolved.modelId}`);
+    }
+  }, [navigate]);
 
   return (
     <div className="fixed inset-0 bg-background overflow-hidden">
@@ -194,7 +236,7 @@ export default function Home() {
                 >
                   <div className="w-full max-w-xs">
                     <Input
-                      placeholder="https://example.com/model.glb"
+                      placeholder="Raw GLB URL or github.com/.../blob/.../model.glb"
                       value={manualUrl}
                       onChange={(e) => setManualUrl(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && handleManualLoad()}
@@ -209,7 +251,7 @@ export default function Home() {
                     </Button>
                   </div>
                   <p className="text-xs text-muted-foreground text-center max-w-xs">
-                    Paste a direct link to a GLB or GLTF model file
+                    Paste a direct GLB link, a raw GitHub file URL, or a regular GitHub blob link (it opens as the raw file).
                   </p>
                 </motion.div>
               </TabsContent>
