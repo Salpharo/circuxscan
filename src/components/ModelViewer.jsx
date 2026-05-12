@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
-import { normalizeModelLoadUrl } from "@/lib/modelUrls";
 
-export default function ModelViewer({ url, onClose }) {
+export default function ModelViewer({ url, onClose, mrMode = false }) {
   const containerRef = useRef(null);
   const rendererRef = useRef(null);
   const sceneRef = useRef(null);
@@ -30,15 +29,14 @@ export default function ModelViewer({ url, onClose }) {
   useEffect(() => {
     if (!containerRef.current || !url) return;
 
-    const loadUrl = normalizeModelLoadUrl(url);
-
     const container = containerRef.current;
     const width = container.clientWidth;
     const height = container.clientHeight;
 
     // Scene
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0a0e17);
+    scene.background = mrMode ? null : new THREE.Color(0x0a0e17);
+    scene.fog = null;
     sceneRef.current = scene;
 
     // Camera
@@ -49,13 +47,14 @@ export default function ModelViewer({ url, onClose }) {
     // Renderer
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
-      alpha: false,
+      alpha: mrMode ? true : false,
     });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(width, height);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.0;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.setClearColor(0x000000, mrMode ? 0 : 1); // Transparent if MR mode
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
@@ -120,19 +119,19 @@ export default function ModelViewer({ url, onClose }) {
     };
 
     // Lights
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
     scene.add(ambientLight);
 
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.7);
     hemiLight.position.set(0, 20, 0);
     scene.add(hemiLight);
 
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
     dirLight.position.set(5, 10, 7);
     dirLight.castShadow = false;
     scene.add(dirLight);
 
-    const fillLight = new THREE.DirectionalLight(0x8888ff, 0.3);
+    const fillLight = new THREE.DirectionalLight(0x8888ff, 0.4);
     fillLight.position.set(-5, 0, -5);
     scene.add(fillLight);
 
@@ -147,17 +146,19 @@ export default function ModelViewer({ url, onClose }) {
     envScene.add(envLight);
     const envMap = pmremGenerator.fromScene(envScene).texture;
     scene.environment = envMap;
+    scene.background = mrMode ? null : new THREE.Color(0x0a0e17);
     pmremGenerator.dispose();
 
-    // Grid
-    const gridHelper = new THREE.GridHelper(10, 20, 0x1a1f2e, 0x111520);
-    gridHelper.position.y = 0;
-    scene.add(gridHelper);
+    // Grid (only in non-MR mode)
+    if (!mrMode) {
+      const gridHelper = new THREE.GridHelper(10, 20, 0x1a1f2e, 0x111520);
+      gridHelper.position.y = 0;
+      scene.add(gridHelper);
+    }
 
     // Load GLTF
     const loadModel = async () => {
       try {
-        // Dynamic import for GLTFLoader
         const { GLTFLoader } = await import("three/addons/loaders/GLTFLoader.js");
         const { DRACOLoader } = await import("three/addons/loaders/DRACOLoader.js");
 
@@ -173,7 +174,7 @@ export default function ModelViewer({ url, onClose }) {
         loader.setDRACOLoader(dracoLoader);
 
         loader.load(
-          loadUrl,
+          url,
           (gltf) => {
             const model = gltf.scene;
 
@@ -205,7 +206,7 @@ export default function ModelViewer({ url, onClose }) {
             }
 
             setModelInfo({
-              name: loadUrl.split("/").pop().split("?")[0],
+              name: url.split("/").pop().split("?")[0],
               vertices: countVertices(model),
               animations: gltf.animations.length,
               size: `${size.x.toFixed(1)} × ${size.y.toFixed(1)} × ${size.z.toFixed(1)}`,
@@ -263,15 +264,17 @@ export default function ModelViewer({ url, onClose }) {
       window.removeEventListener("resize", handleResize);
       cleanup();
     };
-  }, [url, cleanup]);
+  }, [url, mrMode, cleanup]);
 
   return (
-    <div className="relative w-full h-full bg-background">
+    <div className="relative w-full h-full" style={{ background: 'transparent' }}>
       <div ref={containerRef} className="w-full h-full" />
 
       {/* Loading overlay */}
       {loading && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/90 backdrop-blur-sm z-10">
+        <div className={`absolute inset-0 flex flex-col items-center justify-center z-10 ${
+          mrMode ? 'bg-black/30 backdrop-blur-sm' : 'bg-background/90 backdrop-blur-sm'
+        }`}>
           <div className="relative w-20 h-20 mb-6">
             <svg className="w-20 h-20 -rotate-90" viewBox="0 0 80 80">
               <circle
@@ -301,7 +304,8 @@ export default function ModelViewer({ url, onClose }) {
 
       {/* Error */}
       {error && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/95 z-10 p-6">
+        <div className="absolute inset-0 flex flex-col items-center justify-center z-10 p-6"
+             style={{ background: 'rgba(0, 0, 0, 0.7)', backdropFilter: 'blur(4px)' }}>
           <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
             <span className="text-2xl">⚠️</span>
           </div>
@@ -309,8 +313,8 @@ export default function ModelViewer({ url, onClose }) {
         </div>
       )}
 
-      {/* Model info badge */}
-      {modelInfo && !loading && (
+      {/* Model info badge (only in non-MR) */}
+      {modelInfo && !loading && !mrMode && (
         <div className="absolute top-4 left-4 z-10 animate-float-up">
           <div className="px-3 py-2 rounded-lg bg-secondary/70 backdrop-blur-md border border-border/50">
             <p className="text-xs font-medium text-foreground truncate max-w-[200px]">{modelInfo.name}</p>

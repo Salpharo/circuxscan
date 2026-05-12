@@ -75,10 +75,7 @@ export default function GoogleDriveModels({ onSelectModel }) {
       if (!glbFile) return;
       setUploading(true);
       try {
-        const formData = new FormData();
-        formData.append("file", glbFile);
-
-        const response = await base44.functions.invoke("uploadModel", {}, formData);
+        const response = await base44.functions.invoke("uploadModel", { file: glbFile });
         const data = response?.data ?? response ?? {};
 
         if (data.success && data.file_url) {
