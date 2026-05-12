@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { ScanLine, Box, X, ArrowLeft, LinkIcon, Camera, Folder } from "lucide-react";
@@ -44,8 +44,12 @@ function getLaunchState() {
 
 export default function Home() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState(() => getLaunchState().mode); // idle, scanning, viewing
-  const [modelUrl, setModelUrl] = useState(() => getLaunchState().modelUrl);
+  const launchRef = useRef(null);
+  if (launchRef.current === null) {
+    launchRef.current = getLaunchState();
+  }
+  const [mode, setMode] = useState(launchRef.current.mode); // idle, scanning, viewing
+  const [modelUrl, setModelUrl] = useState(launchRef.current.modelUrl);
   const [manualUrl, setManualUrl] = useState("");
   const [activeTab, setActiveTab] = useState("scan");
 
