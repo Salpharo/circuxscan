@@ -23,8 +23,10 @@ const getAppParamValue = (paramName, { defaultValue = undefined, removeFromUrl =
 		storage.setItem(storageKey, searchParam);
 		return searchParam;
 	}
-	if (defaultValue) {
-		storage.setItem(storageKey, defaultValue);
+	if (defaultValue !== undefined && defaultValue !== null) {
+		if (defaultValue !== "") {
+			storage.setItem(storageKey, defaultValue);
+		}
 		return defaultValue;
 	}
 	const storedValue = storage.getItem(storageKey);
@@ -51,4 +53,15 @@ const getAppParams = () => {
 
 export const appParams = {
 	...getAppParams()
+}
+
+/** Hosted app origin (no trailing slash). Falls back to global Base44 API host. */
+export function getBase44ServerOrigin() {
+	const b = (appParams.appBaseUrl || "").trim().replace(/\/$/, "");
+	return b || "https://base44.app";
+}
+
+/** REST prefix for public-settings etc. */
+export function getBase44ApiBaseURL() {
+	return `${getBase44ServerOrigin()}/api`;
 }
