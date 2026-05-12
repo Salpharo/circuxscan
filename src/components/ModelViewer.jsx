@@ -35,7 +35,7 @@ export default function ModelViewer({ url, onClose, mrMode = false }) {
 
     // Scene
     const scene = new THREE.Scene();
-    scene.background = mrMode ? null : new THREE.Color(0x0a0e17);
+    scene.background = null;
     scene.fog = null;
     sceneRef.current = scene;
 
@@ -54,7 +54,7 @@ export default function ModelViewer({ url, onClose, mrMode = false }) {
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.0;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.setClearColor(0x000000, mrMode ? 0 : 1); // Transparent if MR mode
+    renderer.setClearColor(0x000000, 0); // Always transparent
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
@@ -146,15 +146,9 @@ export default function ModelViewer({ url, onClose, mrMode = false }) {
     envScene.add(envLight);
     const envMap = pmremGenerator.fromScene(envScene).texture;
     scene.environment = envMap;
-    scene.background = mrMode ? null : new THREE.Color(0x0a0e17);
     pmremGenerator.dispose();
 
-    // Grid (only in non-MR mode)
-    if (!mrMode) {
-      const gridHelper = new THREE.GridHelper(10, 20, 0x1a1f2e, 0x111520);
-      gridHelper.position.y = 0;
-      scene.add(gridHelper);
-    }
+
 
     // Load GLTF
     const loadModel = async () => {
