@@ -1,54 +1,35 @@
-import React, { useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ScanLine, Box, X, ArrowLeft, LinkIcon, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import QRScanner from "../components/QRScanner";
 import ModelViewer from "../components/ModelViewer";
-import MRCameraFeed from "../components/MRCameraFeed";
-import { resolveScanPayload } from "@/lib/modelUrls";
 
 export default function Home() {
-  const navigate = useNavigate();
   const [mode, setMode] = useState("idle"); // idle, scanning, viewing, mr
   const [modelUrl, setModelUrl] = useState(null);
   const [manualUrl, setManualUrl] = useState("");
   const [showManualInput, setShowManualInput] = useState(false);
 
-  const openResolvedModel = useCallback(
-    (raw) => {
-      const resolved = resolveScanPayload(raw.trim());
-      if (!resolved) return;
-      if (resolved.type === "library") {
-        navigate(`/3dmodellibrary/${resolved.modelId}`);
-        return;
-      }
-      const url = resolved.url;
-      const lower = url.toLowerCase();
-      const looksLikeGlb =
-        /\.(glb|gltf)(\?|#|$)/i.test(lower) ||
-        lower.includes("raw.githubusercontent.com") ||
-        lower.includes("/3dmodels/");
-      setModelUrl(url);
-      setMode(looksLikeGlb ? "viewing" : "mr");
-    },
-    [navigate]
-  );
-
-  const handleScan = useCallback(
-    (value) => {
-      if (!value?.trim()) return;
-      openResolvedModel(value);
-    },
-    [openResolvedModel]
-  );
+  const handleScan = useCallback((value) => {
+    // If it's a URL, use MR mode; otherwise treat as model URL
+    if (value.startsWith("http://") || value.startsWith("https://")) {
+      setModelUrl(value);
+      setMode("mr");
+    } else {
+      setModelUrl(value);
+      setMode("viewing");
+    }
+  }, []);
 
   const handleManualLoad = useCallback(() => {
-    if (!manualUrl.trim()) return;
-    openResolvedModel(manualUrl);
-    setShowManualInput(false);
-  }, [manualUrl, openResolvedModel]);
+    if (manualUrl.trim()) {
+      setModelUrl(manualUrl.trim());
+      setMode("viewing");
+      setShowManualInput(false);
+    }
+  }, [manualUrl]);
 
   const handleReset = useCallback(() => {
     setMode("idle");
@@ -201,41 +182,37 @@ export default function Home() {
           </motion.div>
         )}
 
-        {/* 3D model over live camera (GLB + MR share floating MR look) */}
-        {(mode === "viewing" || mode === "mr") && modelUrl && (
+        {/* Viewing Mode (Regular) */}
+        {mode === "viewing" && modelUrl && (
           <motion.div
-            key={`model-${mode}-${modelUrl}`}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.35 }}
-            className="relative w-full h-full overflow-hidden bg-black"
+            key="viewing"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+            className="relative w-full h-full"
           >
-            <div className="absolute inset-0 z-0">
-              <MRCameraFeed />
+            <ModelViewer url={modelUrl} mrMode={false} />
+
+            {/* Top bar */}
+            <div className="absolute top-4 right-4 z-20 flex gap-2">
+              <Button
+                size="icon"
+                variant="secondary"
+                className="rounded-full w-10 h-10 bg-secondary/70 backdrop-blur-md border border-border/50"
+                onClick={handleReset}
+              >
+                <X className="w-5 h-5" />
+              </Button>
             </div>
 
-            <div className="absolute inset-0 z-10">
-              <ModelViewer url={modelUrl} mrMode />
-            </div>
-
-            <div className="pointer-events-none absolute inset-0 z-20">
-              <div className="pointer-events-auto absolute top-4 right-4">
-                <Button
-                  size="icon"
-                  variant="secondary"
-                  className="rounded-full w-10 h-10 bg-black/50 backdrop-blur-md border border-white/20"
-                  onClick={handleReset}
-                >
-                  <X className="w-5 h-5 text-white" />
-                </Button>
-              </div>
-
-              <div className="pointer-events-auto absolute bottom-6 left-0 right-0 flex justify-center">
+            {/* Bottom action bar */}
+            <div className="absolute bottom-6 left-0 right-0 z-20 flex justify-center">
+              <div className="flex gap-2 px-4 py-2 rounded-full bg-secondary/70 backdrop-blur-md border border-border/50">
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="rounded-full gap-2 text-xs bg-black/50 backdrop-blur-md border border-white/20 text-white hover:bg-black/60"
+                  className="rounded-full gap-2 text-xs"
                   onClick={() => {
                     setMode("scanning");
                     setModelUrl(null);
@@ -245,22 +222,106 @@ export default function Home() {
                   Scan Another
                 </Button>
               </div>
+            </div>
+          </motion.div>
+        )}
 
-              {mode === "mr" && (
-                <div className="pointer-events-auto absolute top-4 left-4 px-3 py-1.5 rounded-full text-xs font-bold bg-primary text-primary-foreground">
-                  MR link
-                </div>
-              )}
-              {mode === "viewing" && (
-                <div className="pointer-events-auto absolute top-4 left-4 px-3 py-1.5 rounded-full text-xs font-medium bg-black/50 backdrop-blur-md border border-white/20 text-white">
-                  Live camera
-                </div>
-              )}
+        {/* MR Mode (3D with Camera Feed) */}
+        {mode === "mr" && modelUrl && (
+          <motion.div
+            key="mr"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="relative w-full h-full overflow-hidden"
+          >
+            {/* Camera feed behind */}
+            <div className="absolute inset-0">
+              <MRCameraFeed />
+            </div>
+
+            {/* 3D Model overlay */}
+            <div className="absolute inset-0">
+              <ModelViewer url={modelUrl} mrMode={true} />
+            </div>
+
+            {/* Controls overlay */}
+            <div className="absolute top-4 right-4 z-20">
+              <Button
+                size="icon"
+                variant="secondary"
+                className="rounded-full w-10 h-10 bg-black/50 backdrop-blur-md border border-white/20"
+                onClick={handleReset}
+              >
+                <X className="w-5 h-5 text-white" />
+              </Button>
+            </div>
+
+            {/* Bottom action */}
+            <div className="absolute bottom-6 left-0 right-0 z-20 flex justify-center">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="rounded-full gap-2 text-xs bg-black/50 backdrop-blur-md border border-white/20 text-white hover:bg-black/60"
+                onClick={() => {
+                  setMode("scanning");
+                  setModelUrl(null);
+                }}
+              >
+                <ScanLine className="w-3.5 h-3.5" />
+                Scan Another
+              </Button>
+            </div>
+
+            {/* MR Badge */}
+            <div className="absolute top-4 left-4 z-20 px-3 py-1.5 rounded-full text-xs font-bold bg-primary text-primary-foreground">
+              🔴 MR Mode
             </div>
           </motion.div>
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+function MRCameraFeed() {
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+
+  useEffect(() => {
+    const startCamera = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false,
+        });
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      } catch (err) {
+        console.error("Camera error:", err);
+      }
+    };
+
+    startCamera();
+
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+      }
+    };
+  }, []);
+
+  return (
+    <video
+      ref={videoRef}
+      className="w-full h-full object-cover"
+      playsInline
+      muted
+      autoPlay
+    />
   );
 }
 

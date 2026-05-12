@@ -44,24 +44,19 @@ export default function ModelViewer({ url, onClose, mrMode = false }) {
     camera.position.set(0, 1, 3);
     cameraRef.current = camera;
 
-    // Renderer — MR: transparent canvas over camera; premultipliedAlpha false helps iOS compositing over <video>
+    // Renderer
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
       alpha: mrMode ? true : false,
-      premultipliedAlpha: mrMode ? false : true,
-      powerPreference: "high-performance",
     });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(width, height);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = mrMode ? 1.05 : 1.0;
+    renderer.toneMappingExposure = 1.0;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.setClearColor(0x000000, mrMode ? 0 : 1);
+    renderer.setClearColor(0x000000, mrMode ? 0 : 1); // Transparent if MR mode
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
-    if (mrMode) {
-      renderer.domElement.style.touchAction = "none";
-    }
 
     // Controls (manual orbit)
     let isDragging = false;
@@ -123,37 +118,36 @@ export default function ModelViewer({ url, onClose, mrMode = false }) {
       },
     };
 
-    // Lights — brighter fill in MR so models read well on real-world camera without a heavy env map
-    const ambientLight = new THREE.AmbientLight(0xffffff, mrMode ? 0.72 : 0.5);
+    // Lights
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
     scene.add(ambientLight);
 
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, mrMode ? 0.85 : 0.7);
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.7);
     hemiLight.position.set(0, 20, 0);
     scene.add(hemiLight);
 
-    const dirLight = new THREE.DirectionalLight(0xffffff, mrMode ? 1.35 : 1.5);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
     dirLight.position.set(5, 10, 7);
     dirLight.castShadow = false;
     scene.add(dirLight);
 
-    const fillLight = new THREE.DirectionalLight(0xaabbff, mrMode ? 0.35 : 0.4);
+    const fillLight = new THREE.DirectionalLight(0x8888ff, 0.4);
     fillLight.position.set(-5, 0, -5);
     scene.add(fillLight);
 
-    if (!mrMode) {
-      const pmremGenerator = new THREE.PMREMGenerator(renderer);
-      pmremGenerator.compileEquirectangularShader();
-      const envScene = new THREE.Scene();
-      envScene.background = new THREE.Color(0x303040);
-      const envLight = new THREE.HemisphereLight(0x6699cc, 0x334455, 1);
-      envScene.add(envLight);
-      const envMap = pmremGenerator.fromScene(envScene).texture;
-      scene.environment = envMap;
-      scene.background = new THREE.Color(0x0a0e17);
-      pmremGenerator.dispose();
-    } else {
-      scene.environment = null;
-    }
+    // Environment map (simple)
+    const pmremGenerator = new THREE.PMREMGenerator(renderer);
+    pmremGenerator.compileEquirectangularShader();
+
+    // Create a simple environment
+    const envScene = new THREE.Scene();
+    envScene.background = new THREE.Color(0x303040);
+    const envLight = new THREE.HemisphereLight(0x6699cc, 0x334455, 1);
+    envScene.add(envLight);
+    const envMap = pmremGenerator.fromScene(envScene).texture;
+    scene.environment = envMap;
+    scene.background = mrMode ? null : new THREE.Color(0x0a0e17);
+    pmremGenerator.dispose();
 
     // Grid (only in non-MR mode)
     if (!mrMode) {
@@ -246,7 +240,8 @@ export default function ModelViewer({ url, onClose, mrMode = false }) {
       const delta = clockRef.current.getDelta();
       if (mixerRef.current) mixerRef.current.update(delta);
 
-      if (!mrMode && !isDragging) {
+      // Subtle auto-rotate when not dragging
+      if (!isDragging) {
         spherical.theta += 0.002;
         updateCamera();
       }

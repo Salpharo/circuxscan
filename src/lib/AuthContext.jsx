@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { appParams, getBase44ApiBaseURL } from '@/lib/app-params';
+import { appParams } from '@/lib/app-params';
 import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
 
 const AuthContext = createContext();
@@ -26,7 +26,7 @@ export const AuthProvider = ({ children }) => {
       // First, check app public settings (with token if available)
       // This will tell us if auth is required, user not registered, etc.
       const appClient = createAxiosClient({
-        baseURL: `${getBase44ApiBaseURL()}/apps/public`,
+        baseURL: `/api/apps/public`,
         headers: {
           'X-App-Id': appParams.appId
         },
