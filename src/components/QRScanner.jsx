@@ -2,128 +2,90 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Camera, CameraOff, RefreshCw, SwitchCamera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ScanOverlay from "./ScanOverlay";
+import QrScanner from "qr-scanner";
+import workerUrl from "qr-scanner/qr-scanner-worker.min.js?url";
+
+// Set worker path for Vite
+QrScanner.WORKER_PATH = workerUrl;
 
 export default function QRScanner({ onScan }) {
   const videoRef = useRef(null);
-  const canvasRef = useRef(null);
-  const streamRef = useRef(null);
-  const scanIntervalRef = useRef(null);
+  const scannerRef = useRef(null);
   const [isActive, setIsActive] = useState(false);
   const [error, setError] = useState(null);
+  // facingMode isn't easily toggleable on the fly with QrScanner start/stop sometimes,
+  // but we can pass preferredCamera to the start method.
   const [facingMode, setFacingMode] = useState("environment");
 
-  const stopCamera = useCallback(() => {
-    if (scanIntervalRef.current) {
-      clearInterval(scanIntervalRef.current);
-      scanIntervalRef.current = null;
+  const startScanning = useCallback(async () => {
+    setError(null);
+    if (!videoRef.current) return;
+
+    try {
+      // Destroy previous instance if any
+      if (scannerRef.current) {
+        scannerRef.current.destroy();
+        scannerRef.current = null;
+      }
+
+      const hasCamera = await QrScanner.hasCamera();
+      if (!hasCamera) {
+        setError("No camera found on this device.");
+        return;
+      }
+
+      scannerRef.current = new QrScanner(
+        videoRef.current,
+        (result) => {
+          if (result && result.data) {
+            onScan(result.data);
+          } else if (typeof result === "string") {
+            onScan(result);
+          }
+        },
+        {
+          onDecodeError: (err) => {
+            // Ignore standard "No QR code found" errors
+          },
+          highlightScanRegion: false,
+          highlightCodeOutline: false,
+          preferredCamera: facingMode,
+          maxScansPerSecond: 5,
+        }
+      );
+
+      await scannerRef.current.start();
+      setIsActive(true);
+    } catch (err) {
+      console.error("Camera error:", err);
+      setIsActive(false);
+      if (err.name === "NotAllowedError" || (err.message && err.message.includes("permission"))) {
+        setError("Camera permission denied. Please allow camera access.");
+      } else {
+        setError("Could not access camera: " + (err.message || "Unknown error"));
+      }
     }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
+  }, [facingMode, onScan]);
+
+  const stopScanning = useCallback(() => {
+    if (scannerRef.current) {
+      scannerRef.current.stop();
+      scannerRef.current.destroy();
+      scannerRef.current = null;
     }
     setIsActive(false);
   }, []);
 
-  const startCamera = useCallback(async () => {
-    setError(null);
-    try {
-      const constraints = {
-        video: {
-          facingMode: facingMode,
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-        audio: false,
-      };
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      streamRef.current = stream;
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-        setIsActive(true);
-        startScanning();
-      }
-    } catch (err) {
-      console.error("Camera error:", err);
-      if (err.name === "NotAllowedError") {
-        setError("Camera permission denied. Please allow camera access.");
-      } else if (err.name === "NotFoundError") {
-        setError("No camera found on this device.");
-      } else {
-        setError("Could not access camera: " + err.message);
-      }
-    }
-  }, [facingMode]);
-
-  const startScanning = useCallback(() => {
-    if (scanIntervalRef.current) clearInterval(scanIntervalRef.current);
-
-    scanIntervalRef.current = setInterval(async () => {
-      if (!videoRef.current || videoRef.current.readyState < 2) return;
-
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      // Try BarcodeDetector API (Chrome, Edge, Android)
-      if ("BarcodeDetector" in window) {
-        try {
-          const detector = new BarcodeDetector({ formats: ["qr_code"] });
-          const barcodes = await detector.detect(canvas);
-          if (barcodes.length > 0) {
-            const value = barcodes[0].rawValue;
-            if (value) {
-              stopCamera();
-              onScan(value);
-              return;
-            }
-          }
-        } catch (e) {
-          // Fall through to image data approach
-        }
-      }
-
-      // Fallback: try detecting via ImageBitmap
-      try {
-        if ("BarcodeDetector" in window) {
-          const bitmap = await createImageBitmap(canvas);
-          const detector = new BarcodeDetector({ formats: ["qr_code"] });
-          const barcodes = await detector.detect(bitmap);
-          if (barcodes.length > 0) {
-            const value = barcodes[0].rawValue;
-            if (value) {
-              stopCamera();
-              onScan(value);
-              return;
-            }
-          }
-        }
-      } catch (e) {
-        // Silent fallback
-      }
-    }, 300);
-  }, [onScan, stopCamera]);
+  useEffect(() => {
+    startScanning();
+    return () => {
+      stopScanning();
+    };
+  }, [startScanning, stopScanning]);
 
   const toggleFacing = useCallback(() => {
-    stopCamera();
-    setFacingMode((prev) =>
-      prev === "environment" ? "user" : "environment"
-    );
-  }, [stopCamera]);
-
-  useEffect(() => {
-    startCamera();
-    return () => stopCamera();
-  }, [facingMode]);
+    setFacingMode((prev) => (prev === "environment" ? "user" : "environment"));
+  }, []);
 
   return (
     <div className="relative w-full h-full bg-background overflow-hidden">
@@ -135,19 +97,18 @@ export default function QRScanner({ onScan }) {
         muted
         autoPlay
       />
-      <canvas ref={canvasRef} className="hidden" />
 
       {/* Scan overlay */}
       {isActive && <ScanOverlay isScanning={isActive} />}
 
       {/* Error state */}
       {error && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center p-6 bg-background/95 backdrop-blur-sm">
+        <div className="absolute inset-0 flex flex-col items-center justify-center p-6 bg-background/95 backdrop-blur-sm z-30">
           <CameraOff className="w-16 h-16 text-muted-foreground mb-4" />
           <p className="text-center text-muted-foreground mb-6 max-w-xs">
             {error}
           </p>
-          <Button onClick={startCamera} className="gap-2">
+          <Button onClick={startScanning} className="gap-2">
             <RefreshCw className="w-4 h-4" /> Try Again
           </Button>
         </div>
@@ -169,7 +130,7 @@ export default function QRScanner({ onScan }) {
 
       {/* Camera inactive placeholder */}
       {!isActive && !error && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-background">
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-background z-10">
           <div className="relative mb-6">
             <Camera className="w-16 h-16 text-primary" />
             <div className="absolute inset-0 w-16 h-16 rounded-full border-2 border-primary/30 animate-pulse-ring" />
