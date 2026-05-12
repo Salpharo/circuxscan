@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { ArrowLeft, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ModelViewer from "../components/ModelViewer";
+import MRCameraFeed from "../components/MRCameraFeed";
 
 export default function ModelLibrary() {
   const { modelId } = useParams();
@@ -43,27 +44,32 @@ export default function ModelLibrary() {
   };
 
   return (
-    <div className="relative w-full h-full bg-background">
+    <div className="relative w-full h-full bg-black">
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="w-full h-full"
+        className="relative h-full w-full overflow-hidden"
       >
-        <ModelViewer url={modelUrl} />
+        <div className="absolute inset-0 z-0">
+          <MRCameraFeed />
+        </div>
+        <div className="absolute inset-0 z-10">
+          <ModelViewer url={modelUrl} mrMode />
+        </div>
 
         {/* Top bar */}
-        <div className="absolute top-4 left-4 right-4 z-20 flex justify-between items-center">
+        <div className="pointer-events-none absolute top-4 left-4 right-4 z-20 flex justify-between items-center">
           <Button
             size="icon"
             variant="secondary"
-            className="rounded-full w-10 h-10 bg-secondary/70 backdrop-blur-md border border-border/50"
+            className="pointer-events-auto rounded-full w-10 h-10 bg-black/50 backdrop-blur-md border border-white/20"
             onClick={() => navigate("/")}
           >
             <ArrowLeft className="w-5 h-5" />
           </Button>
 
-          <div className="px-3 py-2 rounded-lg bg-secondary/70 backdrop-blur-md border border-border/50 max-w-xs">
-            <p className="text-xs font-medium text-foreground truncate">
+          <div className="pointer-events-auto max-w-xs rounded-lg border border-white/20 bg-black/50 px-3 py-2 backdrop-blur-md">
+            <p className="truncate text-xs font-medium text-white">
               {currentModel.name}
             </p>
           </div>
@@ -71,7 +77,7 @@ export default function ModelLibrary() {
           <Button
             size="icon"
             variant="secondary"
-            className="rounded-full w-10 h-10 bg-secondary/70 backdrop-blur-md border border-border/50 hover:bg-destructive/20"
+            className="pointer-events-auto rounded-full w-10 h-10 border border-white/20 bg-black/50 backdrop-blur-md hover:bg-destructive/30"
             onClick={handleDelete}
           >
             <Trash2 className="w-5 h-5 text-destructive" />

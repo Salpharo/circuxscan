@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR CODE READER | Read QR Codes directly in your browser safely for 100% free</title>
+    <link rel="stylesheet" href="./public/css/styles.css" />
+    <link rel="icon" href="https://avatars.githubusercontent.com/u/96913755?v=4" type="image/x-icon"/>
+    <script src="https://kit.fontawesome.com/f3220d5256.js" crossorigin="anonymous"></script>
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2604597246009301"
+    crossorigin="anonymous"></script>
+</head>
+<body>
+    <input type="file" name="QR-Code-Image" accept="image/*" id="file" hidden/>
+    <div class="upload-bg hide">
+        <div class="upload-card hide down">
+            <div class="upload-head">
+                <p>
+                    Upload QR Code
+                </p>
+            </div>
+            <div class="wel">
+                <p>
+                    Click on the button below to upload QR Code for Scanning
+                </p>
+            </div>
+            <button class="upload">
+                <i class="fa fa-cloud-upload"></i>  Browse QR Codes
+            </button>
+        </div>
+    </div>
+    <div class="app">
+        <div class="app-head">
+            <p>
+                QR Code Reader
+            </p>
+        </div>
+        <div class="app-body">
+            <div class="text">
+                Your QR Code:
+            </div>
+            <div class="banner">
+                <img class="img" src="" alt="QR-Code-Image">
+            </div>
+            <div class="info">
+                <label for="QR-Code">
+                    The QR Code says:
+                </label>
+                <div class="qc no-click" id="QR-Code" contenteditable="true"><div class="plce">Upload a QR Code first...</div></div>
+            </div>
+            <div class="btns">
+                <button class="change none">
+                    <i class="fa fa-cloud-upload"></i>  Upload another
+                </button>
+                <button class="copy none">
+                    <i class="fa fa-clone"></i>  Copy Text
+                </button>
+            </div>
+        </div>
+    </div>
+    <script defer src="./public/js/ui.js"></script>
+    <script defer src="./public/js/script.js"></script>
+</body>
+</html>
