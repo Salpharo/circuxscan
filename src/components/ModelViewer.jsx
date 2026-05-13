@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 export default function ModelViewer({ url, onClose, mrMode = false }) {
   const containerRef = useRef(null);
@@ -58,65 +59,31 @@ export default function ModelViewer({ url, onClose, mrMode = false }) {
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
-    // Controls (manual orbit)
-    let isDragging = false;
-    let prevMouse = { x: 0, y: 0 };
-    let spherical = { theta: 0, phi: Math.PI / 3, radius: 3 };
-    let target = new THREE.Vector3(0, 0, 0);
-
-    const updateCamera = () => {
-      const { theta, phi, radius } = spherical;
-      camera.position.set(
-        target.x + radius * Math.sin(phi) * Math.sin(theta),
-        target.y + radius * Math.cos(phi),
-        target.z + radius * Math.sin(phi) * Math.cos(theta)
-      );
-      camera.lookAt(target);
-    };
-
-    const onPointerDown = (e) => {
-      isDragging = true;
-      prevMouse = { x: e.clientX || e.touches?.[0]?.clientX || 0, y: e.clientY || e.touches?.[0]?.clientY || 0 };
-    };
-    const onPointerMove = (e) => {
-      if (!isDragging) return;
-      const x = e.clientX || e.touches?.[0]?.clientX || 0;
-      const y = e.clientY || e.touches?.[0]?.clientY || 0;
-      const dx = x - prevMouse.x;
-      const dy = y - prevMouse.y;
-      spherical.theta -= dx * 0.005;
-      spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi + dy * 0.005));
-      prevMouse = { x, y };
-      updateCamera();
-    };
-    const onPointerUp = () => { isDragging = false; };
-    const onWheel = (e) => {
-      spherical.radius = Math.max(0.5, Math.min(20, spherical.radius + e.deltaY * 0.005));
-      updateCamera();
-    };
-
     const el = renderer.domElement;
-    el.addEventListener("pointerdown", onPointerDown);
-    el.addEventListener("pointermove", onPointerMove);
-    el.addEventListener("pointerup", onPointerUp);
-    el.addEventListener("pointerleave", onPointerUp);
-    el.addEventListener("wheel", onWheel);
-    el.addEventListener("touchstart", onPointerDown, { passive: true });
-    el.addEventListener("touchmove", onPointerMove, { passive: true });
-    el.addEventListener("touchend", onPointerUp);
+    el.style.touchAction = "none";
+    el.style.userSelect = "none";
 
-    controlsRef.current = {
-      dispose: () => {
-        el.removeEventListener("pointerdown", onPointerDown);
-        el.removeEventListener("pointermove", onPointerMove);
-        el.removeEventListener("pointerup", onPointerUp);
-        el.removeEventListener("pointerleave", onPointerUp);
-        el.removeEventListener("wheel", onWheel);
-        el.removeEventListener("touchstart", onPointerDown);
-        el.removeEventListener("touchmove", onPointerMove);
-        el.removeEventListener("touchend", onPointerUp);
-      },
-    };
+    // OrbitControls: 1-finger / drag = rotate, 2-finger pinch = zoom, 2-finger drag = pan (iOS + desktop)
+    const controls = new OrbitControls(camera, el);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.minDistance = 0.25;
+    controls.maxDistance = 80;
+    controls.minPolarAngle = 0.08;
+    controls.maxPolarAngle = Math.PI - 0.08;
+    controls.zoomSpeed = 0.85;
+    controls.rotateSpeed = 0.65;
+    controls.panSpeed = 0.75;
+    controls.screenSpacePanning = true;
+    controls.autoRotate = !mrMode;
+    controls.autoRotateSpeed = 0.9;
+    controls.addEventListener("start", () => {
+      controls.autoRotate = false;
+    });
+    controls.addEventListener("end", () => {
+      controls.autoRotate = !mrMode;
+    });
+    controlsRef.current = controls;
 
     // Lights
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
@@ -185,10 +152,10 @@ export default function ModelViewer({ url, onClose, mrMode = false }) {
 
             scene.add(model);
 
-            // Set camera distance
-            spherical.radius = 3;
-            target.set(0, size.y * scale * 0.4, 0);
-            updateCamera();
+            const orbitTarget = new THREE.Vector3(0, size.y * scale * 0.4, 0);
+            controls.target.copy(orbitTarget);
+            camera.position.set(0, orbitTarget.y + 1, 3);
+            controls.update();
 
             // Play animations
             if (gltf.animations.length > 0) {
@@ -234,12 +201,7 @@ export default function ModelViewer({ url, onClose, mrMode = false }) {
       const delta = clockRef.current.getDelta();
       if (mixerRef.current) mixerRef.current.update(delta);
 
-      // Subtle auto-rotate when not dragging
-      if (!isDragging) {
-        spherical.theta += 0.002;
-        updateCamera();
-      }
-
+      controls.update();
       renderer.render(scene, camera);
     };
     animate();

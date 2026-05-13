@@ -1,16 +1,18 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ScanLine, Box, X, ArrowLeft, LinkIcon, Camera } from "lucide-react";
+import { ScanLine, Box, X, ArrowLeft, LinkIcon, Camera, LocateFixed } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import QRScanner from "../components/QRScanner";
 import ModelViewer from "../components/ModelViewer";
+import PositionalARModel from "../components/PositionalARModel";
 
 export default function Home() {
-  const [mode, setMode] = useState("idle"); // idle, scanning, viewing, mr
+  const [mode, setMode] = useState("idle"); // idle, scanning, viewing, mr, positionalAr
   const [modelUrl, setModelUrl] = useState(null);
   const [manualUrl, setManualUrl] = useState("");
   const [showManualInput, setShowManualInput] = useState(false);
+  const prevModeForArRef = useRef("viewing");
 
   const handleScan = useCallback((value) => {
     // If it's a URL, use MR mode; otherwise treat as model URL
@@ -39,6 +41,15 @@ export default function Home() {
 
   const startScanning = useCallback(() => {
     setMode("scanning");
+  }, []);
+
+  const enterPositionalAr = useCallback(() => {
+    prevModeForArRef.current = mode === "mr" ? "mr" : "viewing";
+    setMode("positionalAr");
+  }, [mode]);
+
+  const exitPositionalAr = useCallback(() => {
+    setMode(prevModeForArRef.current);
   }, []);
 
   return (
@@ -207,8 +218,17 @@ export default function Home() {
             </div>
 
             {/* Bottom action bar */}
-            <div className="absolute bottom-6 left-0 right-0 z-20 flex justify-center">
-              <div className="flex gap-2 px-4 py-2 rounded-full bg-secondary/70 backdrop-blur-md border border-border/50">
+            <div className="absolute bottom-6 left-0 right-0 z-20 flex justify-center px-4">
+              <div className="flex flex-wrap gap-2 justify-center px-4 py-2 rounded-2xl bg-secondary/70 backdrop-blur-md border border-border/50 max-w-md">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="rounded-full gap-2 text-xs"
+                  onClick={enterPositionalAr}
+                >
+                  <LocateFixed className="w-3.5 h-3.5" />
+                  Place on table (AR)
+                </Button>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -259,25 +279,50 @@ export default function Home() {
             </div>
 
             {/* Bottom action */}
-            <div className="absolute bottom-6 left-0 right-0 z-20 flex justify-center">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="rounded-full gap-2 text-xs bg-black/50 backdrop-blur-md border border-white/20 text-white hover:bg-black/60"
-                onClick={() => {
-                  setMode("scanning");
-                  setModelUrl(null);
-                }}
-              >
-                <ScanLine className="w-3.5 h-3.5" />
-                Scan Another
-              </Button>
+            <div className="absolute bottom-6 left-0 right-0 z-20 flex justify-center px-4">
+              <div className="flex flex-wrap gap-2 justify-center">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="rounded-full gap-2 text-xs bg-black/50 backdrop-blur-md border border-white/20 text-white hover:bg-black/60"
+                  onClick={enterPositionalAr}
+                >
+                  <LocateFixed className="w-3.5 h-3.5" />
+                  Place on table (AR)
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="rounded-full gap-2 text-xs bg-black/50 backdrop-blur-md border border-white/20 text-white hover:bg-black/60"
+                  onClick={() => {
+                    setMode("scanning");
+                    setModelUrl(null);
+                  }}
+                >
+                  <ScanLine className="w-3.5 h-3.5" />
+                  Scan Another
+                </Button>
+              </div>
             </div>
 
             {/* MR Badge */}
             <div className="absolute top-4 left-4 z-20 px-3 py-1.5 rounded-full text-xs font-bold bg-primary text-primary-foreground">
               🔴 MR Mode
             </div>
+          </motion.div>
+        )}
+
+        {/* Positional AR — native AR placement (table / floor anchor) */}
+        {mode === "positionalAr" && modelUrl && (
+          <motion.div
+            key="positionalAr"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="relative w-full h-full"
+          >
+            <PositionalARModel url={modelUrl} onClose={exitPositionalAr} />
           </motion.div>
         )}
       </AnimatePresence>
